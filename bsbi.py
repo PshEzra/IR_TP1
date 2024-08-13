@@ -3,6 +3,8 @@ import pickle
 import contextlib
 import heapq
 import time
+from mpstemmer import MPStemmer
+import re
 
 from index import InvertedIndexReader, InvertedIndexWriter
 from util import IdMap, sort_intersect_list
@@ -72,6 +74,7 @@ class BSBIIndex:
             with InvertedIndexWriter(index_id, self.postings_encoding, path = self.output_path) as index:
                 self.write_to_index(td_pairs, index)
                 td_pairs = None
+
     
         self.save()
 
@@ -120,7 +123,36 @@ class BSBIIndex:
         parse_block(...).
         """
         # TODO
-        return []
+        stemmer = MPStemmer()
+
+        with open("./stopwords_id_satya.txt", 'r') as r:
+            stopwords = set(r.read().split())
+            r.close()
+
+        ret_list = []
+
+        for path in os.walk(self.data_path+"/"+block_path):
+            for files in path[2]:
+                with open(self.data_path+"/"+block_path+"/"+files, 'r') as f:
+                    terms = re.findall(r'\w+', f.read()) # f.read().split()
+
+                    stemmed_term = [stemmer.stem(term.lower())
+                                    if term else ''
+                                    for term in terms
+                                    ]
+                    stemmed_term_no_empty = [
+                        term for term in stemmed_term
+                        if not ((term == '') or (term == None))
+                    ]
+
+                    doc_id = self.doc_id_map[self.data_path + "/" + block_path + "/" + files]
+
+                    no_stopwords_term = [term for term in stemmed_term_no_empty if term not in stopwords]
+
+                    for term in no_stopwords_term:
+                        ret_list.append((self.term_id_map[term], doc_id))
+
+        return ret_list
 
     def write_to_index(self, td_pairs, index):
         """
@@ -167,6 +199,16 @@ class BSBIIndex:
             semua intermediate InvertedIndexWriter objects.
         """
         # TODO
+        term_dict = {}
+
+        for value in heapq.merge(*indices):
+            if value[0] not in term_dict.keys():
+                term_dict[value[0]] = value[1]
+            else:
+                term_dict[value[0]].extend(value[1])
+
+        for key in term_dict.keys():
+            merged_index.append(key, term_dict[key])
 
     def boolean_retrieve(self, query):
         """
@@ -192,12 +234,30 @@ class BSBIIndex:
         JANGAN LEMPAR ERROR/EXCEPTION untuk terms yang TIDAK ADA di collection.
         """
         # TODO
-        return []
+        self.load()
+
+        stemmer = MPStemmer()
+
+        query_list = re.findall(r'\w+', query)
+        stem_query = [stemmer.stem(word.lower()) for word in query_list]
+        indexed_query = [self.term_id_map[word] for word in stem_query]
+
+        with InvertedIndexReader(self.index_name, self.postings_encoding, path=self.output_path) as index:
+            queried_list = []
+
+            for query_index in indexed_query:
+                if len(queried_list) == 0:
+                    queried_list = index.get_postings_list(query_index)
+                else:
+                    queried_list = sort_intersect_list(queried_list, index.get_postings_list(query_index))
+
+        ret_list = [self.doc_id_map[id] for id in queried_list]
+
+        return ret_list
 
 
 if __name__ == "__main__":
-
     BSBI_instance = BSBIIndex(data_path = 'collections', \
-                              postings_encoding = VBEPostings, \
-                              output_path = 'index')
+                             postings_encoding = VBEPostings, \
+                             output_path = 'index')
     BSBI_instance.start_indexing() # memulai indexing!

@@ -120,7 +120,14 @@ class InvertedIndexReader(InvertedIndex):
         diproses di memori. JANGAN MEMUAT SEMUA INDEX DI MEMORI!
         """
         # TODO
-        return (None, [])
+        term_iter = next(self.term_iter, None)
+        if term_iter is not None:
+            ret_post_list = self.get_postings_list(term_iter)
+            # print("Ret : ", (term_iter, ret_post_list))
+            return (term_iter, ret_post_list)
+        else:
+            self.reset()
+            raise StopIteration
 
     def get_postings_list(self, term):
         """
@@ -132,7 +139,12 @@ class InvertedIndexReader(InvertedIndex):
         term disimpan.
         """
         # TODO
-        return []
+        term_pos = self.postings_dict[term]
+        self.index_file.seek(term_pos[0])
+        b = self.index_file.read(term_pos[2])
+        ret_value = self.encoding_method.decode(b)
+        self.index_file.seek(0)
+        return ret_value
 
 class InvertedIndexWriter(InvertedIndex):
     """
@@ -174,6 +186,13 @@ class InvertedIndexWriter(InvertedIndex):
             List of docIDs dimana term muncul
         """
         # TODO
+        post_encode = self.encoding_method.encode(postings_list)
+        if len(self.terms) == 0:
+            self.postings_dict[term] = (0, len(postings_list), len(post_encode))
+        else:
+            self.postings_dict[term] = (self.postings_dict[self.terms[-1]][2]+self.postings_dict[self.terms[-1]][0], len(postings_list), len(post_encode))
+        self.index_file.write(post_encode)
+        self.terms.append(term)
         return []
 
 if __name__ == "__main__":
@@ -213,3 +232,17 @@ if __name__ == "__main__":
         index.index_file.seek(0)
         assert VBEPostings.decode(index.index_file.read(index.postings_dict[1][2])) == [2, 3, 4, 8, 10], "terdapat kesalahan"
         assert VBEPostings.decode(index.index_file.read(index.postings_dict[2][2])) == [3, 4, 5], "terdapat kesalahan"
+
+        index.append(3, [3])
+        index.append(4, [1,3,4,10])
+
+
+    with InvertedIndexReader('test', encoding_method=VBEPostings, path='./tmp/') as read:
+
+        read.get_postings_list(1)
+        read.get_postings_list(2)
+
+        for term in read:
+            print(term)
+
+

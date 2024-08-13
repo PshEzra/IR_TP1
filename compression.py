@@ -1,4 +1,5 @@
 import array
+from math import log
 
 class StandardPostings:
     """ 
@@ -90,7 +91,15 @@ class VBEPostings:
             bytearray yang merepresentasikan urutan integer di postings_list
         """
         # TODO
-        return None
+        gap_list = []
+        gap_list.append(postings_list[0])
+
+        for i in range(1, len(postings_list)):
+            gap_list.append(postings_list[i]-postings_list[i-1])
+
+        ret_stream = VBEPostings.vb_encode(gap_list)
+
+        return ret_stream
     
     @staticmethod
     def vb_encode(list_of_numbers):
@@ -99,7 +108,12 @@ class VBEPostings:
         list of numbers, dengan Variable-Byte Encoding
         """
         # TODO
-        return 0
+        bytestream = bytearray()
+        for num in list_of_numbers:
+            byte = VBEPostings.vb_encode_number(num)
+            bytestream += byte
+
+        return bytestream
 
     @staticmethod
     def vb_encode_number(number):
@@ -108,7 +122,17 @@ class VBEPostings:
         Lihat buku teks kita!
         """
         # TODO
-        return 0
+        n = number
+        byte = bytearray()
+        while True:
+            new_byte = bytearray()
+            new_byte.append(n % 128)
+            byte = new_byte + byte
+            if n < 128:
+                break
+            n = n // 128
+        byte[len(byte)-1] += 128
+        return byte
 
     @staticmethod
     def decode(encoded_postings_list):
@@ -129,7 +153,15 @@ class VBEPostings:
             list of docIDs yang merupakan hasil decoding dari encoded_postings_list
         """
         # TODO
-        return []
+        gap_list = VBEPostings.vb_decode(encoded_postings_list)
+        ret_list = []
+        ret_list.append(gap_list[0])
+
+        for i in range(1,len(gap_list)):
+            ret_list.append(ret_list[i-1]+gap_list[i])
+
+
+        return ret_list
 
     @staticmethod
     def vb_decode(encoded_bytestream):
@@ -139,16 +171,54 @@ class VBEPostings:
         """
         numbers = []
         n = 0
+
         for byte in encoded_bytestream:
-            if (byte < 128):
+            if byte < 128:
                 n = 128 * n + byte
             else:
-                n = 128 * n + byte - 128
+                n = 128 * n + (byte - 128)
                 numbers.append(n)
                 n = 0
         return numbers
 
-    
+class EliasGammaPostings:
+    @staticmethod
+    def decode(encoded_postings_list):
+        pass
+
+    @staticmethod
+    def encode(postings_list):
+        gap_list = []
+        gap_list.append(postings_list[0])
+
+        for i in range(1, len(postings_list)):
+            gap_list.append(postings_list[i] - postings_list[i - 1])
+
+        ret_stream = EliasGammaPostings.eg_encode(gap_list)
+
+        return ret_stream
+
+    @staticmethod
+    def eg_encode(gap_list):
+        bytestream = bytearray()
+        for num in gap_list:
+            byte = EliasGammaPostings.encode_number(num)
+            bytestream += byte
+
+        return bytestream
+
+    @staticmethod
+    def encode_number(num):
+        if (num == 0):
+            return b'00'
+
+        n = 1 + int(log(num,2))
+        b = num - 2 ** (int(log(num,2)))
+
+        l = int(log(num, 2))
+
+        # return Unary(n) + Binary(b, l)
+        pass
 
 if __name__ == '__main__':
     
